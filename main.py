@@ -8,7 +8,11 @@ is executed in each context.
 import os, sys, atexit, subprocess, time, json, shutil
 from datetime import datetime
 from tests.testenv import get_test_result_class, begin_test_suite, end_test_suite, in_teamcity
+
 import docker, teamcity
+from pathlib import Path
+
+
 
 import tests.neo4j.suites as suites
 
@@ -54,6 +58,12 @@ def ensure_driver_image(root_path, branch_name, driver_name):
     # the image file hasn't changed).
     #
     # This will use the driver folder as build context.
+    if driver_name == "dotnet":
+        if platform.system() == "Windows":
+            context_path = os.path.join(context_path, "windows")
+        else:
+            context_path = os.path.join(context_path, "linux")
+
     print("Building driver Docker image %s from %s" % (image_name, context_path))
     subprocess.check_call(["docker", "build", "--tag", image_name, context_path])
 
@@ -70,6 +80,8 @@ def ensure_driver_image(root_path, branch_name, driver_name):
 
 
 if __name__ == "__main__":
+
+
     driverName = os.environ.get(env_driver_name)
     if not driverName:
         print("Missing environment variable %s that contains name of the driver" % env_driver_name)
@@ -115,22 +127,29 @@ if __name__ == "__main__":
     # The host running this will be gateway on that network, retrieve that
     # address to be able to start services on the network that the driver
     # connects to (stub server and TLS server).
-    subprocess.run([
-        "docker", "network", "create", "the-bridge"
-    ])
+    if platform.system() == "Windows":
+        subprocess.run([
+            "docker", "network", "create", "--driver", "nat", "the-bridge"
+        ])
+    else:
+        subprocess.run([
+            "docker", "network", "create", "the-bridge"
+        ])
+
+
 
     # Bootstrap the driver docker image by running a bootstrap script in the image.
     # The driver docker image only contains the tools needed to build, not the built driver.
     driverContainer = docker.run(driverImage, "driver",
-        command=["python3", "/testkit/driver/bootstrap.py"],
+        command=["python3", Path("/testkit/driver/bootstrap.py")],
         mountMap={
-            thisPath: "/testkit", 
-            driverRepo: "/driver", 
-            artifactsPath: "/artifacts"
+            thisPath: Path("/testkit"),
+            driverRepo: Path("/driver"),
+            artifactsPath: Path("/artifacts")
         },
         portMap={ 9876: 9876, }, # For convenience when debugging
         network="the-bridge",
-        workingFolder="/driver")
+        workingFolder=Path("/driver"))
 
     # Setup environment variables for driver container
     driverEnv = {}
@@ -140,18 +159,18 @@ if __name__ == "__main__":
             driverEnv[varName] = os.environ[varName]
 
     # Clean up artifacts
-    driverContainer.exec(["python3", "/testkit/driver/clean_artifacts.py"], envMap=driverEnv)
+    driverContainer.exec(["python3", Path("/testkit/driver/clean_artifacts.py")], envMap=driverEnv)
 
     # Build the driver and it's testkit backend
     print("Build driver and test backend in driver container")
-    driverContainer.exec(["python3", "/testkit/driver/%s/build.py" % driverName], envMap=driverEnv)
+    driverContainer.exec(["python3", Path("/testkit/driver/%s/build.py") % driverName], envMap=driverEnv)
     print("Finished building driver and test backend")
 
     """
     Unit tests
     """
     begin_test_suite('Unit tests')
-    driverContainer.exec(["python3", "/testkit/driver/%s/unittests.py" % driverName], envMap=driverEnv)
+    driverContainer.exec(["python3", Path("/testkit/driver/%s/unittests.py") % driverName], envMap=driverEnv)
     end_test_suite('Unit tests')
 
     # Start the test backend in the driver Docker instance.
@@ -162,17 +181,17 @@ if __name__ == "__main__":
     # issues like 'detected possible backend crash', make sure that this
     # works simply by commenting detach and see that the backend starts.
     print("Start test backend in driver container")
-    driverContainer.exec_detached(["python3", "/testkit/driver/%s/backend.py" % driverName], envMap=driverEnv)
+    driverContainer.exec_detached(["python3", Path("/testkit/driver/%s/backend.py") % driverName], envMap=driverEnv)
     # Wait until backend started
     # Use driver container to check for backend availability
-    driverContainer.exec(["python3", "/testkit/driver/wait_for_port.py", "localhost", "%d" % 9876], envMap=driverEnv)
+    driverContainer.exec(["python3", Path("/testkit/driver/wait_for_port.py"), "localhost", "%d" % 9876], envMap=driverEnv)
     print("Started test backend")
 
     # Start runner container, responsible for running the unit tests
     # Use Go driver image for this since we need to build TLS server and use that in the runner.
     runnerImage = ensure_driver_image(thisPath, testkitBranch, "go")
     runnerEnv = {
-        "PYTHONPATH": "/testkit", # To use modules
+        "PYTHONPATH": Path("/testkit"), # To use modules
     }
     # Copy TEST_ variables that might have been set explicit
     for varName in os.environ:
@@ -191,8 +210,8 @@ if __name__ == "__main__":
         "TEST_STUB_HOST":    "runner",       # Driver connects to me
     })
     runnerContainer = docker.run(runnerImage, "runner",
-        command=["python3", "/testkit/driver/bootstrap.py"],
-        mountMap={ thisPath: "/testkit" },
+        command=["python3", Path("/testkit/driver/bootstrap.py")],
+        mountMap={ thisPath: Path("/testkit") },
         envMap=runnerEnv,
         network="the-bridge",
         aliases=["thehost", "thehostbutwrong"])  # Used when testing TLS
@@ -206,7 +225,7 @@ if __name__ == "__main__":
     TLS tests
     """
     # Build TLS server
-    runnerContainer.exec(["go", "build", "-v", "."], workdir="/testkit/tlsserver")
+    runnerContainer.exec(["go", "build", "-v", "."], workdir=Path("/testkit/tlsserver"))
     runnerContainer.exec(["python3", "-m", "tests.tls.suites"])
 
     """
@@ -268,14 +287,14 @@ if __name__ == "__main__":
         # Start a Neo4j server
         print("Starting neo4j server")
         neo4jContainer = docker.run(neo4jServer["image"], neo4jServerHostname,
-            mountMap={os.path.join(neo4jArtifactsPath, "logs"): "/logs"},
+            mountMap={os.path.join(neo4jArtifactsPath, "logs"): Path("/logs")},
             envMap=envMap,
             network="the-bridge")
         print("Neo4j container server started, waiting for port to be available")
 
         # Wait until server is listening before running tests
         # Use driver container to check for Neo4j availability since connect will be done from there
-        driverContainer.exec(["python3", "/testkit/driver/wait_for_port.py", neo4jServerHostname, "%d" % port])
+        driverContainer.exec(["python3", Path("/testkit/driver/wait_for_port.py"), neo4jServerHostname, "%d" % port])
         print("Neo4j in container listens")
 
         # Run the actual test suite within the runner container. The tests will connect to driver
@@ -305,16 +324,16 @@ if __name__ == "__main__":
         # The stress test suite uses threading and put a bigger load on the driver than the
         # integration tests do and are therefore written in the driver language.
         print("Building and running stress tests...")
-        driverContainer.exec(["python3", "/testkit/driver/%s/stress.py" % driverName], envMap=driverEnv)
+        driverContainer.exec(["python3", Path("/testkit/driver/%s/stress.py") % driverName], envMap=driverEnv)
 
         # Run driver native integration tests within the driver container.
-        driverContainer.exec(["python3", "/testkit/driver/%s/integration.py" % driverName], envMap=driverEnv)
+        driverContainer.exec(["python3", Path("/testkit/driver/%s/integration.py") % driverName], envMap=driverEnv)
 
         # Check that all connections to Neo4j has been closed.
         # Each test suite should close drivers, sessions properly so any pending connections
         # detected here should indicate connection leakage in the driver.
         print("Checking that connections are closed to the database")
-        driverContainer.exec(["python3", "/testkit/driver/assert_conns_closed.py", neo4jServerHostname, "%d" % port])
+        driverContainer.exec(["python3", Path("/testkit/driver/assert_conns_closed.py"), neo4jServerHostname, "%d" % port])
 
         subprocess.run([
             "docker", "rm", "-f", "-v", neo4jServerHostname], check=False)

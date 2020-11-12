@@ -45,6 +45,7 @@ def run(image, name, command=None, mountMap={}, hostMap={}, portMap={}, envMap={
     cmd.append(image)
     if command:
         cmd.extend(command)
+    print(str(cmd))
     subprocess.run(cmd, check=True)
 
     return Container(name)

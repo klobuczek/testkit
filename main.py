@@ -21,6 +21,7 @@ networks = ["the-bridge"]
 
 
 def cleanup():
+    return
     for c in containers:
         subprocess.run(["docker", "rm", "-f", "-v", c],
                        check=False, stdout=subprocess.DEVNULL,

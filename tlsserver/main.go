@@ -22,6 +22,7 @@ var expectedHandshake = []byte{0x60, 0x60, 0xb0, 0x17}
 func main() {
 	var (
 		address        string
+		network        string
 		certPath       string
 		keyPath        string
 		minTlsMinorVer int
@@ -32,11 +33,19 @@ func main() {
 	)
 	flag.BoolVar(&disableTls, "disableTls", false, "Disable TLS")
 	flag.StringVar(&address, "bind", "0.0.0.0:6666", "Address to bind to")
+	flag.StringVar(&network, "network", "tcp", "Network type to bind to")
 	flag.StringVar(&certPath, "cert", "", "Path to server certificate")
 	flag.StringVar(&keyPath, "key", "", "Path to server private key")
 	flag.IntVar(&minTlsMinorVer, "minTls", 0, "Minimum TLS version, minor part")
 	flag.IntVar(&maxTlsMinorVer, "maxTls", 2, "Maximum TLS version, minor part")
 	flag.Parse()
+
+	if network == "unix" {
+		// Need to remove UDS file before continuing
+		// Ignore error, if the file didn't exist it is fine or if it did
+		// exist but we failed to remove it we will get an error upon listen.
+		os.Remove(address)
+	}
 
 	if !disableTls {
 		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
@@ -52,17 +61,17 @@ func main() {
 			MinVersion: 0x0300 | uint16(minTlsMinorVer+1),
 			MaxVersion: 0x0300 | uint16(maxTlsMinorVer+1),
 		}
-		listener, err = tls.Listen("tcp", address, &config)
+		listener, err = tls.Listen(network, address, &config)
 		if err != nil {
 			exitWithError(err)
 		}
-		fmt.Printf("TLS, listening on %s with cert %s\n", address, certPath)
+		fmt.Printf("TLS, listening on %s:%s with cert %s\n", network, address, certPath)
 	} else {
-		listener, err = net.Listen("tcp", address)
+		listener, err = net.Listen(network, address)
 		if err != nil {
 			exitWithError(err)
 		}
-		fmt.Printf("Listening on non-TLS %s\n", address)
+		fmt.Printf("Listening on non-TLS %s:%s\n", network, address)
 	}
 	defer listener.Close()
 

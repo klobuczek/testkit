@@ -1,5 +1,7 @@
-import subprocess, platform, os, time, sys
-from tests.shared import *
+import subprocess
+import os
+import time
+import sys
 from nutkit.frontend import Driver, AuthorizationToken
 
 # Retrieve path to the repository containing this script.
@@ -8,15 +10,21 @@ thisPath = os.path.dirname(os.path.abspath(__file__))
 
 
 class TlsServer:
-    def __init__(self, server_cert, minTls="0", maxTls="2", disableTls=False):
+    def __init__(
+            self, server_cert,
+            minTls="0", maxTls="2", bind="0.0.0.0:6666",
+            disableTls=False, network=None):
         """ Name of server certificate, corresponds to a .pem and .key file.
         """
-        serverPath = os.path.join(thisPath, "..", "..", "tlsserver", "tlsserver")
-        certPath = os.path.join(thisPath, "certs", "server", "%s.pem" % server_cert)
-        keyPath = os.path.join(thisPath, "certs", "server", "%s.key" % server_cert)
+        serverPath = os.path.join(
+                thisPath, "..", "..", "tlsserver", "tlsserver")
+        certPath = os.path.join(
+                thisPath, "certs", "server", "%s.pem" % server_cert)
+        keyPath = os.path.join(
+                thisPath, "certs", "server", "%s.key" % server_cert)
         params = [
             serverPath,
-            "-bind", "0.0.0.0:6666",
+            "-bind", bind,
             "-cert", certPath,
             "-key", keyPath,
             "-minTls", minTls,
@@ -24,11 +32,14 @@ class TlsServer:
         ]
         if disableTls:
             params.append("--disableTls")
-        self._process = subprocess.Popen(params,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            close_fds=True,
-            encoding='utf-8')
+        if network:
+            params.extend(("-network", network))
+        self._process = subprocess.Popen(
+                params,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                close_fds=True,
+                encoding='utf-8')
         # Wait until something is written to know it started
         line = self._process.stdout.readline()
         print(line)
@@ -38,8 +49,8 @@ class TlsServer:
         self._process.stderr.close()
 
     def connected(self):
-        """ Checks that the server has stopped and its exit code to determine if
-        driver connected or not.
+        """ Checks that the server has stopped and its exit code to determine
+        if driver connected or not.
         """
         polls = 100
         while polls:
@@ -78,15 +89,18 @@ class TlsServer:
             self._kill()
 
 
-def try_connect(backend, server, scheme, host):
-    url = "%s://%s:%d" % (scheme, host, 6666)
+def try_connect(backend, server, scheme, host, port=6666):
+    url = "%s://%s" % (scheme, host)
+    if port:
+        url = "%s:%s" % (url, port)
     # Doesn't really matter
-    auth = AuthorizationToken(scheme="basic", principal="neo4j", credentials="pass")
+    auth = AuthorizationToken(
+            scheme="basic", principal="neo4j", credentials="pass")
     driver = Driver(backend, url, auth)
     session = driver.session("r")
     try:
-        result = session.run("RETURN 1 as n")
-    except:
+        session.run("RETURN 1 as n")
+    except Exception:
         pass
     session.close()
     driver.close()

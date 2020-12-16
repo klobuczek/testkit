@@ -267,18 +267,18 @@ def main(thisPath, driverName, testkitBranch, driverRepo):
         # Start a Neo4j server
         if cluster:
             print("Starting neo4j cluster (%s)" % serverName)
-            server = neo4j.Cluster(neo4jServer["image"],
-                                   serverName,
-                                   neo4jArtifactsPath)
+            service = neo4j.Cluster(neo4jServer["image"],
+                                    serverName,
+                                    neo4jArtifactsPath)
         else:
             print("Starting neo4j standalone server (%s)" % serverName)
-            server = neo4j.Standalone(neo4jServer["image"],
-                                      serverName,
-                                      neo4jArtifactsPath,
-                                      "neo4jserver", 7687,
-                                      neo4jServer["edition"])
-        server.start()
-        hostname, port = server.address()
+            service = neo4j.Standalone(neo4jServer["image"],
+                                       serverName,
+                                       neo4jArtifactsPath,
+                                       "neo4jserver", 7687,
+                                       neo4jServer["edition"])
+        service.start()
+        hostname, port = service.address()
 
         # Wait until server is listening before running tests
         # Use driver container to check for Neo4j availability since connect
@@ -337,12 +337,24 @@ def main(thisPath, driverName, testkitBranch, driverRepo):
         # The stress test suite uses threading and put a bigger load on the
         # driver than the integration tests do and are therefore written in
         # the driver language.
-        # None of the drivers will work properly in cluster.
         if not cluster or driverName in ['go', 'javascript']:
             print("Building and running stress tests...")
-            driverContainer.exec([
+            # Retrieve a waitable subprocess to be able to run chaos monkey
+            # on this main thread (only when running cluster)
+            proc = driverContainer.exec_popen([
                 "python3", "/testkit/driver/%s/stress.py" % driverName],
                 envMap=driverEnv)
+            if cluster:
+                rolls = 0
+                while proc.poll() is None:
+                    service.roll()
+                    rolls += 1
+                if rolls == 0:
+                    raise Exception("Cluster either failed or exited too "
+                                    "early, didn't roll!")
+            proc.wait()
+            if proc.returncode != 0:
+                raise Exception("Stress test failed")
         else:
             print("Skipping stress tests for %s" % serverName)
 
@@ -367,7 +379,7 @@ def main(thisPath, driverName, testkitBranch, driverRepo):
             "python3", "/testkit/driver/assert_conns_closed.py",
             hostname, "%d" % port])
 
-        server.stop()
+        service.stop()
 
 
 if __name__ == "__main__":

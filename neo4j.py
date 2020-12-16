@@ -1,5 +1,6 @@
-import docker
 from os.path import join
+from time import sleep
+import docker
 
 
 username = "neo4j"
@@ -52,25 +53,51 @@ class Cluster:
         self.name = name
         self._image = image
         self._artifacts_path = join(artifacts_path, name)
-        self._num_cores = num_cores
         self._cores = []
+        self._i = 0
+        # Cores are not started at this point
+        for i in range(num_cores):
+            self.add_core()
 
     def start(self):
-        for i in range(self._num_cores):
-            core = Core(i, self._artifacts_path)
-            self._cores.append(core)
-
+        # Starts all unstarted cores
         initial_members = ",".join([c.discover for c in self._cores])
-
         for core in self._cores:
-            core.start(self._image, initial_members, "the-bridge")
+            if not core.started():
+                core.start(self._image, initial_members, "the-bridge")
+
+    def add_core(self):
+        core = Core(self._i, self._artifacts_path)
+        self._i += 1
+        self._cores.append(core)
 
     def address(self):
-        return ("core0", 7687)
+        # All cores respond to this network alias
+        return ("cluster", 7687)
 
     def stop(self):
         for core in self._cores:
             core.stop()
+
+    def roll(self):
+        sleep(20)
+        # Add two new
+        self.add_core()
+        self.add_core()
+        self.start()
+        sleep(5)
+        # Remove the oldest
+        core = self._cores.pop(0)
+        core.stop()
+        # Add 1
+        self.add_core()
+        self.start()
+        sleep(5)
+        # Remove two oldest
+        core = self._cores.pop(0)
+        core.stop()
+        core = self._cores.pop(0)
+        core.stop()
 
 
 class Core:
@@ -117,10 +144,15 @@ class Core:
                 "%s/%s" % (username, password),
         }
         logs_path = join(self._artifacts_path, "logs")
+        aliases = ['cluster']
         self._container = docker.run(image, self.name,
                                      envMap=envMap, network=network,
-                                     mountMap={logs_path: "/logs"})
+                                     mountMap={logs_path: "/logs"},
+                                     aliases=aliases)
+
+    def started(self):
+        return self._container is not None
 
     def stop(self):
-        self._container.rm()
+        self._container.stop()
         self._container = None

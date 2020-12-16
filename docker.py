@@ -14,11 +14,17 @@ class Container:
             cmd.extend(["-e", "%s=%s" % (k, envMap[k])])
 
     def exec(self, command, workdir=None, envMap={}):
+        proc = self.exec_popen(command, workdir, envMap)
+        proc.wait()
+        if proc.returncode != 0:
+            raise Exception("Container exec command failed")
+
+    def exec_popen(self, command, workdir=None, envMap={}):
         cmd = ["docker", "exec"]
         self._add(cmd, workdir, envMap)
         cmd.append(self.name)
         cmd.extend(command)
-        subprocess.run(cmd, check=True)
+        return subprocess.Popen(cmd)
 
     def exec_detached(self, command, workdir=None, envMap={}):
         cmd = ["docker", "exec", "--detach"]
@@ -32,6 +38,11 @@ class Container:
         subprocess.run(cmd, check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         del _running[self.name]
+
+    def stop(self):
+        cmd = ["docker", "stop", self.name]
+        subprocess.run(cmd, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def run(image, name, command=None, mountMap={}, hostMap={}, portMap={},

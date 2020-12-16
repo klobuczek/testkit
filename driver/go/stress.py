@@ -27,7 +27,7 @@ if __name__ == "__main__":
     run(["go", "install", "-v", "--race", root_package + "/test-stress"])
     # Run the stress tests
     cmd = ["/home/build/bin/test-stress", "-uri", uri,
-           "-user", user, "-password", password]
+           "-user", user, "-password", password, "-duration", "120"]
     if os.environ.get("TEST_NEO4J_IS_CLUSTER"):
         cmd.append("-cluster")
     run(cmd)

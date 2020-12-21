@@ -186,10 +186,10 @@ def main(thisPath, driverName, testkitBranch, driverRepo):
     TLS tests
     """
     # Build TLS server
-    runnerContainer.exec(
-            ["go", "build", "-v", "."], workdir="/testkit/tlsserver")
-    runnerContainer.exec(
-            ["python3", "-m", "tests.tls.suites"])
+    #runnerContainer.exec(
+    #        ["go", "build", "-v", "."], workdir="/testkit/tlsserver")
+    #runnerContainer.exec(
+    #        ["python3", "-m", "tests.tls.suites"])
 
     """
     Neo4j server tests

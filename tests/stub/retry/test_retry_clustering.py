@@ -147,7 +147,7 @@ class TestRetryClustering(TestkitTestCase):
         }
         if get_driver_name() not in ["go", "python"]:
             vars["#EXTRA_RESET_2#"] = "C: RESET\nS: SUCCESS {}"
-        if get_driver_name() in ["java", "javascript"]:
+        if get_driver_name() in ["java", "javascript", "ruby"]:
             vars["#EXTRA_RESET_1#"] = "C: RESET\nS: SUCCESS {}"
 
         self._writeServer.start(
@@ -196,7 +196,7 @@ class TestRetryClustering(TestkitTestCase):
         }
         if get_driver_name() not in ["go", "python"]:
             vars["#EXTRA_RESET_2#"] = "C: RESET\nS: SUCCESS {}"
-        if get_driver_name() in ["java", "javascript"]:
+        if get_driver_name() in ["java", "javascript", "ruby"]:
             vars["#EXTRA_RESET_1#"] = "C: RESET\nS: SUCCESS {}"
 
         self._writeServer.start(path=self.script_path(script), vars=vars)
@@ -237,7 +237,7 @@ class TestRetryClustering(TestkitTestCase):
         return v
 
     def get_extra_hello_props(self):
-        if get_driver_name() in ["java"]:
+        if get_driver_name() in ["java", "ruby"]:
             return ', "realm": ""'
         elif get_driver_name() in ["javascript"]:
             return ', "realm": "", "ticket": ""'

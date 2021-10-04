@@ -57,7 +57,7 @@ class TestRetry(TestkitTestCase):
         }
         if self._driverName not in ["go", "python"]:
             vars["#EXTRA_RESET_2#"] = "C: RESET\nS: SUCCESS {}"
-        if self._driverName in ["java", "javascript"]:
+        if self._driverName in ["java", "javascript", "ruby"]:
             vars["#EXTRA_RESET_1#"] = "C: RESET\nS: SUCCESS {}"
 
         self._server.start(path=self.script_path(script), vars=vars)

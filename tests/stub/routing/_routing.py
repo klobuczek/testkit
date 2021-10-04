@@ -12,7 +12,7 @@ from tests.stub.shared import StubServer
 
 
 def get_extra_hello_props():
-    if get_driver_name() in ["java"]:
+    if get_driver_name() in ["java", "ruby"]:
         return ', "realm": ""'
     elif get_driver_name() in ["javascript"]:
         return ', "realm": "", "ticket": ""'

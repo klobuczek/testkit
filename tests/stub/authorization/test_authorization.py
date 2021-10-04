@@ -12,7 +12,7 @@ from tests.stub.shared import StubServer
 
 
 def get_extra_hello_props():
-    if get_driver_name() in ["java"]:
+    if get_driver_name() in ["java", "ruby"]:
         return ', "realm": ""'
     elif get_driver_name() in ["javascript"]:
         return ', "realm": "", "ticket": ""'
@@ -40,6 +40,8 @@ class AuthorizationBase(TestkitTestCase):
             pass
         elif driver in ['dotnet']:
             self.assertEqual("AuthorizationExpired", error.errorType)
+        elif driver in ['ruby']:
+            self.assertEqual("Neo4j::Driver::Exceptions::AuthorizationExpiredException", error.errorType)
         else:
             self.fail("no error mapping is defined for %s driver" % driver)
 

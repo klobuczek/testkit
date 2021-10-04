@@ -97,7 +97,7 @@ class TestDisconnects(TestkitTestCase):
         self._server.done()
 
         expected_step = "after first next"
-        if self._driverName in ["go", "java", "dotnet", "python"]:
+        if self._driverName in ["go", "java", "dotnet", "python", "ruby"]:
             expected_step = "after run"
         self.assertEqual(step, expected_step)
 
@@ -116,7 +116,7 @@ class TestDisconnects(TestkitTestCase):
         self._server.done()
 
         expected_step = "after first next"
-        if self._driverName in ["go", "python", "java"]:
+        if self._driverName in ["go", "python", "java", "ruby"]:
             expected_step = "after run"
         self.assertEqual(step, expected_step)
 
@@ -131,7 +131,7 @@ class TestDisconnects(TestkitTestCase):
         self._server.done()
 
         expected_step = "after first next"
-        if self._driverName in ["go", "python", "java"]:
+        if self._driverName in ["go", "python", "java", "ruby"]:
             # Go reports this error earlier
             expected_step = "after run"
         self.assertEqual(step, expected_step)
@@ -286,7 +286,7 @@ class TestDisconnects(TestkitTestCase):
     def get_extra_hello_props(self):
         if self._driverName == "javascript":
             return ', "realm": "", "ticket": ""'
-        elif self._driverName == "java":
+        elif self._driverName in ["java", "ruby"]:
             return ', "realm": ""'
         elif self._driverName == "dotnet":
             return ', "routing": null'

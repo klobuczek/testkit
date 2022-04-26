@@ -170,7 +170,7 @@ class TestTxFuncRun(TestkitTestCase):
 
     def test_tx_func_configuration(self):
         # TODO: remove this block once all languages work
-        if get_driver_name() in ["java"]:
+        if get_driver_name() in ["java", "ruby"]:
             self.skipTest("Does not send metadata")
 
         def run(tx):

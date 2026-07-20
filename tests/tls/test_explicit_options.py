@@ -35,7 +35,7 @@ class TestExplicitSslOptions(TestkitTestCase):
             with self.assertRaises(types.DriverError) as exc:
                 Driver(self._backend, url, auth, encrypted=encrypted,
                        trusted_certificates=certs)
-            if get_driver_name() in ["javascript", "java", "dotnet"]:
+            if get_driver_name() in ["javascript", "java", "dotnet", "ruby"]:
                 self.assertIn("encryption", exc.exception.msg.lower())
                 self.assertIn("trust", exc.exception.msg.lower())
             else:
